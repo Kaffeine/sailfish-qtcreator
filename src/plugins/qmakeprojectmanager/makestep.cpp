@@ -245,10 +245,7 @@ bool MakeStep::init(QList<const BuildStep *> &earlierSteps)
         Utils::QtcProcess::addArg(&args, objectFile);
     }
     Utils::Environment env = bc->environment();
-<<<<<<< HEAD
-=======
     Utils::Environment::setupEnglishOutput(&env);
->>>>>>> mer-4.1
     // We also prepend "L" to the MAKEFLAGS, so that nmake / jom are less verbose
     if (tc && makeCommand().isEmpty()) {
         if (tc->targetAbi().os() == Abi::WindowsOS
@@ -427,10 +424,7 @@ void MakeStepConfigWidget::updateDetails()
     QString args = m_makeStep->userArguments();
 
     Utils::Environment env = bc->environment();
-<<<<<<< HEAD
-=======
     Utils::Environment::setupEnglishOutput(&env);
->>>>>>> mer-4.1
     // We prepend "L" to the MAKEFLAGS, so that nmake / jom are less verbose
     // FIXME doing this without the user having a way to override this is rather bad
     if (tc && m_makeStep->makeCommand().isEmpty()) {
