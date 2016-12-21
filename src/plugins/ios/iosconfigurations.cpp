@@ -27,6 +27,7 @@
 #include "iosconstants.h"
 #include "iosdevice.h"
 #include "iossimulator.h"
+#include "simulatorcontrol.h"
 #include "iosprobe.h"
 
 #include <coreplugin/icore.h>
@@ -333,7 +334,7 @@ void IosConfigurations::updateSimulators()
         dev = IDevice::ConstPtr(new IosSimulator(devId));
         devManager->addDevice(dev);
     }
-    IosSimulator::updateAvailableDevices();
+    SimulatorControl::updateAvailableSimulators();
 }
 
 void IosConfigurations::setDeveloperPath(const FileName &devPath)
@@ -344,7 +345,8 @@ void IosConfigurations::setDeveloperPath(const FileName &devPath)
         m_instance->save();
         if (!hasDevPath && !devPath.isEmpty()) {
             hasDevPath = true;
-            QTimer::singleShot(1000, IosDeviceManager::instance(), SLOT(monitorAvailableDevices()));
+            QTimer::singleShot(1000, IosDeviceManager::instance(),
+                               &IosDeviceManager::monitorAvailableDevices);
             m_instance->updateSimulators();
         }
         emit m_instance->updated();
