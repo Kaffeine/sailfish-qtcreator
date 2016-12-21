@@ -23,8 +23,7 @@
 **
 ****************************************************************************/
 
-#ifndef SYMBOLGROUPVALUE_H
-#define SYMBOLGROUPVALUE_H
+#pragma once
 
 #include "common.h"
 #include "knowntype.h"
@@ -113,6 +112,7 @@ public:
     static std::string moduleOfType(const std::string &type);
     // pointer type, return number of characters to strip
     static unsigned isPointerType(const std::string &);
+    static unsigned isMovable(const std::string &, const SymbolGroupValue &v);
     static bool isArrayType(const std::string &);
     static bool isVTableType(const std::string &t);
     // add pointer type 'Foo' -> 'Foo *', 'Foo *' -> 'Foo **'
@@ -256,8 +256,8 @@ unsigned dumpSimpleType(SymbolGroupNode  *n, const SymbolGroupValueContext &ctx,
                         void **specialInfoIn = 0,
                         MemoryHandle **memoryHandleIn = 0);
 
-bool dumpEditValue(const SymbolGroupNode *n, const SymbolGroupValueContext &,
-                   int desiredFormat, std::ostream &str);
+void dumpEditValue(const SymbolGroupNode *n, const SymbolGroupValueContext &,
+                   const std::string &desiredFormat, std::ostream &str);
 
 enum AssignEncoding
 {
@@ -274,5 +274,3 @@ bool assignType(SymbolGroupNode  *n, int valueEncoding, const std::string &value
 std::vector<AbstractSymbolGroupNode *>
     dumpComplexType(SymbolGroupNode *node, int type, void *specialInfo,
                     const SymbolGroupValueContext &ctx);
-
-#endif // SYMBOLGROUPVALUE_H

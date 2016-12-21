@@ -62,9 +62,9 @@ public:
     }
 
     QByteArray m_id;
+    mutable QString m_displayName;
     Core::Id m_typeId;
     Detection m_detection;
-    mutable QString m_displayName;
 };
 
 } // namespace Internal
@@ -133,6 +133,11 @@ Utils::FileName ToolChain::suggestedDebugger() const
 Core::Id ToolChain::typeId() const
 {
     return d->m_typeId;
+}
+
+QList<Abi> ToolChain::supportedAbis() const
+{
+    return { targetAbi() };
 }
 
 bool ToolChain::canClone() const
@@ -247,7 +252,7 @@ bool ToolChainFactory::canCreate()
 
 ToolChain *ToolChainFactory::create()
 {
-    return 0;
+    return nullptr;
 }
 
 bool ToolChainFactory::canRestore(const QVariantMap &)
@@ -257,7 +262,7 @@ bool ToolChainFactory::canRestore(const QVariantMap &)
 
 ToolChain *ToolChainFactory::restore(const QVariantMap &)
 {
-    return 0;
+    return nullptr;
 }
 
 static QPair<QString, QString> rawIdData(const QVariantMap &data)

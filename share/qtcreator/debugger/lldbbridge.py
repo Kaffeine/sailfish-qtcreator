@@ -206,7 +206,7 @@ class Dumper(DumperBase):
         self.currentType = ReportItem()
         self.currentNumChild = None
         self.currentMaxNumChild = None
-        self.currentPrintsAddress = None
+        self.currentPrintsAddress = True
         self.currentChildType = None
         self.currentChildNumChild = -1
         self.currentWatchers = {}
@@ -231,6 +231,7 @@ class Dumper(DumperBase):
 
         self.report('lldbversion=\"%s\"' % lldb.SBDebugger.GetVersionString())
         self.reportState("enginesetupok")
+        self.debuggerCommandInProgress = False
 
     def enterSubItem(self, item):
         if isinstance(item.name, lldb.SBValue):
@@ -250,12 +251,14 @@ class Dumper(DumperBase):
             if item.name == '**&':
                 item.name = '*'
             self.put('name="%s",' % item.name)
+        item.savedCurrentAddress = self.currentAddress
         item.savedIName = self.currentIName
         item.savedValue = self.currentValue
         item.savedType = self.currentType
         self.currentIName = item.iname
         self.currentValue = ReportItem()
         self.currentType = ReportItem()
+        self.currentAddress = None
 
     def exitSubItem(self, item, exType, exValue, exTraceBack):
         if not exType is None:
@@ -278,10 +281,13 @@ class Dumper(DumperBase):
                 self.put('value="%s",' % self.currentValue.value)
         except:
             pass
+        if not self.currentAddress is None:
+            self.put(self.currentAddress)
         self.put('},')
         self.currentIName = item.savedIName
         self.currentValue = item.savedValue
         self.currentType = item.savedType
+        self.currentAddress = item.savedCurrentAddress
         return True
 
     def stateName(self, s):
@@ -647,7 +653,7 @@ class Dumper(DumperBase):
         self.dyldImageSuffix = args.get('dyldimagesuffix', '')
         self.dyldLibraryPath = args.get('dyldlibrarypath', '')
         self.dyldFrameworkPath = args.get('dyldframeworkpath', '')
-        self.processArgs_ = map(lambda x: self.hexdecode(x), self.processArgs_)
+        self.processArgs_ = list(map(lambda x: self.hexdecode(x), self.processArgs_))
         self.attachPid_ = args.get('attachpid', 0)
         self.sysRoot_ = args.get('sysroot', '')
         self.remoteChannel_ = args.get('remotechannel', '')
@@ -705,8 +711,13 @@ class Dumper(DumperBase):
             self.report('pid="%s"' % self.process.GetProcessID())
             # Even if it stops it seems that LLDB assumes it is running
             # and later detects that it did stop after all, so it is be
-            # better to mirror that and wait for the spontaneous stop.
-            self.reportState("enginerunandinferiorrunok")
+            # better to mirror that and wait for the spontaneous stop
+            if self.process and self.process.GetState() == lldb.eStateStopped:
+                # lldb stops the process after attaching. This happens before the
+                # eventloop starts. Relay the correct state back.
+                self.reportState("enginerunandinferiorstopok")
+            else:
+                self.reportState("enginerunandinferiorrunok")
         elif self.startMode_ == AttachToRemoteServer or self.startMode_ == AttachToRemoteProcess:
             self.process = self.target.ConnectRemote(
                 self.debugger.GetListener(),
@@ -900,6 +911,10 @@ class Dumper(DumperBase):
             # logview pane feature.
             self.report('token(\"%s\")' % args["token"])
 
+    def readRawMemory(self, address, size):
+        error = lldb.SBError()
+        return self.process.ReadMemory(address, size, error)
+
     def extractBlob(self, base, size):
         if size == 0:
             return Blob("")
@@ -923,7 +938,8 @@ class Dumper(DumperBase):
 
     def findStaticMetaObject(self, typeName):
         symbolName = self.mangleName(typeName + '::staticMetaObject')
-        return self.target.FindFirstGlobalVariable(symbolName)
+        symbol = self.target.FindFirstGlobalVariable(symbolName)
+        return int(symbol.AddressOf()) if symbol.IsValid() else 0
 
     def findSymbol(self, symbolName):
         return self.target.FindFirstGlobalVariable(symbolName)
@@ -957,7 +973,7 @@ class Dumper(DumperBase):
         #if int(addr) == 0xffffffffffffffff:
         #    raise RuntimeError("Illegal address")
         if self.currentPrintsAddress and not addr is None:
-            self.put('address="0x%x",' % int(addr))
+            self.currentAddress = 'address="0x%x",' % toInteger(addr)
 
     def isFunctionType(self, typeobj):
         if self.isGoodLldb:
@@ -1084,27 +1100,14 @@ class Dumper(DumperBase):
             self.putValue(v)
 
         self.putType(typeName)
-        self.putEmptyValue()
         self.putNumChild(numchild)
-        if self.showQObjectNames:
-            staticMetaObject = self.extractStaticMetaObject(value.GetType())
-            if staticMetaObject:
-                self.context = value
-                self.putQObjectNameValue(value)
+        self.putStructGuts(value)
 
-        if self.currentIName in self.expandedINames:
-            self.put('sortable="1"')
-            with Children(self):
-                self.putFields(value)
-                if not self.showQObjectNames:
-                    staticMetaObject = self.extractStaticMetaObject(value.GetType())
-                if staticMetaObject:
-                    self.putQObjectGuts(value, staticMetaObject)
 
     def warn(self, msg):
         self.put('{name="%s",value="",type="",numchild="0"},' % msg)
 
-    def putFields(self, value):
+    def putFields(self, value, dumpBase = True):
         # Suppress printing of 'name' field for arrays.
         if value.GetType().GetTypeClass() == lldb.eTypeClassArray:
             for i in xrange(value.GetNumChildren()):
@@ -1139,9 +1142,10 @@ class Dumper(DumperBase):
         for i in xrange(len(baseObjects)):
             baseObject = baseObjects[i]
             with UnnamedSubItem(self, "@%d" % (i + 1)):
-               self.put('iname="%s",' % self.currentIName)
-               self.put('name="[%s]",' % baseObject.name)
-               self.putItem(baseObject.value)
+                self.put('iname="%s",' % self.currentIName)
+                self.put('name="[%s]",' % baseObject.name)
+                self.put('sortgroup="30"')
+                self.putItem(baseObject.value)
 
         memberCount = value.GetNumChildren()
         if memberCount > 10000:
@@ -1181,6 +1185,7 @@ class Dumper(DumperBase):
             return
 
         self.output = ''
+        self.currentAddress = None
         partialVariable = args.get('partialvar', "")
         isPartial = len(partialVariable) > 0
 
@@ -1216,6 +1221,13 @@ class Dumper(DumperBase):
                 name += "@%s" % level
             else:
                 shadowed[name] = 1
+
+            if not value.IsInScope():
+                with SubItem(self, name):
+                    self.put('iname="%s",' % self.currentIName)
+                    self.putSpecialValue('outofscope')
+                    self.putNumChild(0)
+                continue
 
             if name == "argv" and value.GetType().GetName() == "char **":
                 self.putSpecialArgv(value)
@@ -1329,10 +1341,12 @@ class Dumper(DumperBase):
         flavor = event.GetDataFlavor()
         state = lldb.SBProcess.GetStateFromEvent(event)
         bp = lldb.SBBreakpoint.GetBreakpointFromEvent(event)
+        skipEventReporting = self.debuggerCommandInProgress and (eventType == lldb.SBProcess.eBroadcastBitSTDOUT or eventType == lldb.SBProcess.eBroadcastBitSTDERR)
         self.report('event={type="%s",data="%s",msg="%s",flavor="%s",state="%s",bp="%s"}'
             % (eventType, out.GetData(), msg, flavor, self.stateName(state), bp))
         if state != self.eventState:
-            self.eventState = state
+            if not skipEventReporting:
+                self.eventState = state
             if state == lldb.eStateExited:
                 if self.isShuttingDown_:
                     self.reportState("inferiorshutdownok")
@@ -1375,7 +1389,8 @@ class Dumper(DumperBase):
                 else:
                     self.reportState("stopped")
             else:
-                self.reportState(self.stateName(state))
+                if not skipEventReporting:
+                    self.reportState(self.stateName(state))
         if eventType == lldb.SBProcess.eBroadcastBitStateChanged: # 1
             state = self.process.GetState()
             if state == lldb.eStateStopped:
@@ -1677,6 +1692,7 @@ class Dumper(DumperBase):
         self.reportResult(self.hexencode(result.GetOutput()), {})
 
     def executeDebuggerCommand(self, args):
+        self.debuggerCommandInProgress = True
         self.reportToken(args)
         result = lldb.SBCommandReturnObject()
         command = args['command']
@@ -1685,6 +1701,7 @@ class Dumper(DumperBase):
         output = result.GetOutput()
         error = str(result.GetError())
         self.report('success="%d",output="%s",error="%s"' % (success, output, error))
+        self.debuggerCommandInProgress = False
 
     def fetchDisassembler(self, args):
         functionName = args.get('function', '')

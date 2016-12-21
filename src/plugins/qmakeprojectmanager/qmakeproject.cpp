@@ -95,7 +95,6 @@ namespace Internal {
 
 class QmakeProjectFile : public Core::IDocument
 {
-    Q_OBJECT
 public:
     QmakeProjectFile(const QString &filePath);
 
@@ -1485,7 +1484,9 @@ void QmakeProject::collectLibraryData(const QmakeProFileNode *node, DeploymentDa
             destDir.append(QLatin1Char('/')).append(ti.target)
                     .append(QLatin1String(".framework"));
         } else {
-            targetFileName.prepend(QLatin1String("lib"));
+            if (!(isPlugin && config.contains(QLatin1String("no_plugin_name_prefix"))))
+                targetFileName.prepend(QLatin1String("lib"));
+
             if (!isPlugin) {
                 targetFileName += QLatin1Char('.');
                 const QString version = node->singleVariableValue(VersionVar);
@@ -1504,7 +1505,9 @@ void QmakeProject::collectLibraryData(const QmakeProFileNode *node, DeploymentDa
     case Abi::LinuxOS:
     case Abi::BsdOS:
     case Abi::UnixOS:
-        targetFileName.prepend(QLatin1String("lib"));
+        if (!(isPlugin && config.contains(QLatin1String("no_plugin_name_prefix"))))
+            targetFileName.prepend(QLatin1String("lib"));
+
         targetFileName += QLatin1Char('.');
         if (isStatic) {
             targetFileName += QLatin1Char('a');
