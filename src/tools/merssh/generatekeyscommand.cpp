@@ -27,6 +27,7 @@
 #include <QFile>
 
 GenerateKeysCommand::GenerateKeysCommand()
+    : Command()
 {
 }
 

@@ -30,6 +30,7 @@
 #include <QStringList>
 
 MakeCommand::MakeCommand()
+    : Command()
 {
 
 }

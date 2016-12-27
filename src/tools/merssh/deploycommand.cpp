@@ -32,6 +32,7 @@
 #include <QStringList>
 
 DeployCommand::DeployCommand()
+    : Command()
 {
 
 }

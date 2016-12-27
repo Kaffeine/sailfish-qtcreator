@@ -29,6 +29,7 @@
 #include <QStringList>
 
 GccCommand::GccCommand()
+    : Command()
 {
 }
 

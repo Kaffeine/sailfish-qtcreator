@@ -32,6 +32,7 @@
 #include <QStringList>
 
 RpmCommand::RpmCommand()
+    : Command()
 {
 
 }

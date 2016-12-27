@@ -32,6 +32,7 @@
 #include <QStringList>
 
 RpmValidationCommand::RpmValidationCommand()
+    : Command()
 {
 
 }

@@ -32,6 +32,7 @@
 #include <QStringList>
 
 QMakeCommand::QMakeCommand()
+    : Command()
 {
 
 }
